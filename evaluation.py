@@ -47,7 +47,6 @@ def evaluate(policy: ChlorinationControlPolicy, env: WaterChlorinationEnv) -> di
         else:
             scada_data.concatenate(current_scada_data)
 
-    env.close()
     print("Done with simulation")
 
     # Evalute performance
@@ -186,5 +185,5 @@ def evaluate(policy: ChlorinationControlPolicy, env: WaterChlorinationEnv) -> di
         Total_Infections_day = np.sum([np.sum(item) for item in Total_risk_per_person])
         Total_risk_of_infection = (Total_Infections_day / np.sum(People_per_node)) * 100
         r["infection_risk"].append(Total_risk_of_infection)
-
+    env.close()
     return r

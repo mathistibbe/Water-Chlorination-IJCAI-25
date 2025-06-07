@@ -5,6 +5,7 @@ from env import WaterChlorinationEnv
 from scenarios import load_scenario
 from control_policy import ChlorinationControlPolicyRandom
 from evaluation import evaluate
+from load_my_policy import load_policy
 
 
 if __name__ == "__main__":
@@ -13,8 +14,9 @@ if __name__ == "__main__":
     with WaterChlorinationEnv(**load_scenario(scenario_id=0)) as env:
         # Create new random policy
         # TODO: Develop a "smarter" policy/controller
-        my_policy = ChlorinationControlPolicyRandom(env)
-
+        #my_policy = ChlorinationControlPolicyRandom(env)
+        my_policy = load_policy(env)
         # Evaluate policy
         r = evaluate(my_policy, env)
         print(r)
+

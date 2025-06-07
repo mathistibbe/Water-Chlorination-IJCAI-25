@@ -10,7 +10,7 @@ from control_policy import ChlorinationControlPolicy
 
 class MyPolicy(ChlorinationControlPolicy):
     def __init__(self, env):
-        self._policy = PPO("MlpPolicy", NormalizeObservation(env))
+        self._policy = PPO("MlpPolicy", NormalizeObservation(env), verbose=1, device='cpu')
         super().__init__(env=env)
 
     def load_from_file(self, f_in: str) -> None:
