@@ -16,14 +16,14 @@ def make_env(scenario_id):
 if __name__ == "__main__":
     # Use PPO to train a MLP for mapping observations to actions
     # TODO: You might want to use more than one scenario when training the policy
-    envs = [make_env(i) for i in range(3)]
-    vec_env = DummyVecEnv(envs)
-    # with WaterChlorinationEnv(**load_scenario(scenario_id=0)) as env:
+    # envs = [make_env(i) for i in range(3)]
+    # vec_env = DummyVecEnv(envs)
+    #
     # max n_steps for the 6 day scenario:
     # n_steps = (24 (days) * 3 (days of simulation) * 60 (minutes per day)) / 5 (minutes per step) = 864
     # n_steps = 864
     # n_envs = ...
-
-    model = PPO("MlpPolicy", vec_env, n_steps=10, batch_size=100, device='cpu', verbose=0)
-    model.learn(total_timesteps=10_000, progress_bar=True)
-    model.save("my_ppo_model_10k-steps_3_scenario.zip")
+    with WaterChlorinationEnv(**load_scenario(scenario_id=6)) as env:
+        model = PPO("MlpPolicy", env=NormalizeObservation(env), n_steps=128, batch_size=64, device='cpu', verbose=0)
+        model.learn(total_timesteps=10_000, progress_bar=True)
+        model.save("my_ppo_model_10k-steps_1_scenario_custom_reward_1.0.zip")

@@ -12,10 +12,9 @@ if __name__ == "__main__":
     # Compare multiple policies
     with WaterChlorinationEnv(**load_scenario(scenario_id=6)) as env:
         models = [
-            load_policy(env, zip_file_name="my_ppo_model.zip"),
+            # load_policy(env, zip_file_name="my_ppo_model.zip"),
             load_policy(env, zip_file_name="my_ppo_model_10k-steps_1_scenario.zip"),
-            load_policy(env, zip_file_name="my_ppo_model_10k-steps_3_scenario.zip"),
+            # load_policy(env, zip_file_name="my_ppo_model_10k-steps_3_scenario.zip"),
+            load_policy(env, zip_file_name="my_ppo_model_10k-steps_1_scenario_custom_reward_1.0.zip"),
         ]
         compare_models(models, env, save_results_to="results.png")
-
-

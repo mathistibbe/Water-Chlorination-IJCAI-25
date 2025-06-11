@@ -4,6 +4,7 @@ This module contains the water chlorination control environment that is to be us
 """
 from typing import Optional, Any
 import numpy as np
+import math
 from epyt_control.envs import EpanetMsxControlEnv
 from epyt_control.envs.actions import SpeciesInjectionAction
 from epyt_flow.simulation import ScadaData, SensorConfig, ScenarioConfig
@@ -14,6 +15,7 @@ class WaterChlorinationEnv(EpanetMsxControlEnv):
     """
     Control environment.
     """
+
     def __init__(self, scenario_config: ScenarioConfig, f_in_contamination_metadata: str,
                  f_in_streams_data: str, action_space: list[SpeciesInjectionAction]):
         super().__init__(scenario_config=scenario_config,
@@ -30,7 +32,7 @@ class WaterChlorinationEnv(EpanetMsxControlEnv):
         super().reset(seed, options)
 
         # Set constant chlorine injection
-        #self._scenario_sim.epanet_api.setMSXPattern("CL2PAT", [3000])
+        # self._scenario_sim.epanet_api.setMSXPattern("CL2PAT", [3000])
         self._scenario_sim.epanet_api.setMSXPattern("CL2PAT1", [500])
         self._scenario_sim.epanet_api.setMSXPattern("CL2PAT2", [10])
         self._scenario_sim.epanet_api.setMSXPattern("CL2PAT3", [10])
@@ -69,7 +71,7 @@ class WaterChlorinationEnv(EpanetMsxControlEnv):
         """
         # TODO: Replace with smth. more reasonable!
         # Sum up (negative) residuals for out of bounds Cl concentrations at nodes -- i.e.
-        # reward of zero means everythings is okay, while a negative reward
+        # reward of zero means everything is okay, while a negative reward
         # denotes Cl concentration bound violations
         reward = 0.
 
@@ -84,10 +86,52 @@ class WaterChlorinationEnv(EpanetMsxControlEnv):
 
         nodes_quality = scada_data.get_data_bulk_species_node_concentration({"CL2": scada_data.sensor_config.nodes})
 
-        upper_bound_violation_idx = nodes_quality > upper_cl_bound
-        reward += -1. * np.sum(nodes_quality[upper_bound_violation_idx] - upper_cl_bound)
+        # reward_concentration = 0.
+        # for cl_concentration in nodes_quality.flatten().tolist():
+        #    reward_concentration += math.exp(-((cl_concentration - 0.3) ** 2) / (2 * 0.05 ** 2))
 
-        lower_bound_violation_idx = nodes_quality < lower_cl_bound
-        reward += np.sum(nodes_quality[lower_bound_violation_idx] - lower_cl_bound)
+        # reward_concentration = reward_concentration / len(nodes_quality)
 
-        return reward
+        # upper_bound_violation_idx = nodes_quality > upper_cl_bound
+        # reward += -1. * np.sum(nodes_quality[upper_bound_violation_idx] - upper_cl_bound)
+
+        # lower_bound_violation_idx = nodes_quality < lower_cl_bound
+        # reward += np.sum(nodes_quality[lower_bound_violation_idx] - lower_cl_bound)
+
+        return self.chlorine_reward(sensor_readings=nodes_quality)
+
+    def chlorine_reward(self, sensor_readings: np.ndarray,
+                        target: float = 0.3,
+                        sigma: float = 0.05,
+                        alpha: float = 10.0,
+                        lower: float = 0.2,
+                        upper: float = 0.4) -> float:
+        """
+        Compute rewards for a vector of chlorine sensor readings.
+
+        Parameters:
+            sensor_readings (np.ndarray): Array of sensor values.
+            target (float): Ideal chlorine concentration.
+            sigma (float): Std dev for Gaussian reward (within bounds).
+            alpha (float): Penalty factor for out-of-bound values.
+            lower (float): Lower safe concentration bound.
+            upper (float): Upper safe concentration bound.
+
+        Returns:
+            np.ndarray: Array of reward values.
+        """
+
+        rewards = np.zeros_like(sensor_readings)
+
+        # Within bounds: Gaussian reward centered at target
+        in_bounds = (sensor_readings >= lower) & (sensor_readings <= upper)
+        rewards[in_bounds] = np.exp(-((sensor_readings[in_bounds] - target) ** 2) / (2 * sigma ** 2))
+
+        # Out of bounds: Linear penalty based on distance to nearest bound
+        out_bounds = ~in_bounds
+        distances = np.where(sensor_readings[out_bounds] < lower,
+                             lower - sensor_readings[out_bounds],
+                             sensor_readings[out_bounds] - upper)
+        rewards[out_bounds] = -alpha * distances
+
+        return np.sum(rewards)
