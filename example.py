@@ -6,17 +6,16 @@ from scenarios import load_scenario
 from control_policy import ChlorinationControlPolicyRandom
 from evaluation import evaluate
 from load_my_policy import load_policy
-
+from utils import compare_models
 
 if __name__ == "__main__":
-    # Create environment based on the first scenario
-    # TODO: You might want to consider more than one scenario when training your policy/controller
-    with WaterChlorinationEnv(**load_scenario(scenario_id=0)) as env:
-        # Create new random policy
-        # TODO: Develop a "smarter" policy/controller
-        #my_policy = ChlorinationControlPolicyRandom(env)
-        my_policy = load_policy(env)
-        # Evaluate policy
-        r = evaluate(my_policy, env)
-        print(r)
+    # Compare multiple policies
+    with WaterChlorinationEnv(**load_scenario(scenario_id=6)) as env:
+        models = [
+            load_policy(env, zip_file_name="my_ppo_model.zip"),
+            load_policy(env, zip_file_name="my_ppo_model_10k-steps_1_scenario.zip"),
+            load_policy(env, zip_file_name="my_ppo_model_10k-steps_3_scenario.zip"),
+        ]
+        compare_models(models, env, save_results_to="results.png")
+
 

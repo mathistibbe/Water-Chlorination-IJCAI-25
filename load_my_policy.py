@@ -8,9 +8,9 @@ from control_policy import ChlorinationControlPolicy
 from my_policy import MyPolicy
 
 
-def load_policy(env: WaterChlorinationEnv) -> ChlorinationControlPolicy:
+def load_policy(env: WaterChlorinationEnv, zip_file_name: str = "my_ppo_model.zip") -> ChlorinationControlPolicy:
     # Create and load our final policy/controller
     my_policy = MyPolicy(env)
-    my_policy.load_from_file("my_ppo_model.zip")
+    my_policy.load_from_file(zip_file_name)
 
     return my_policy
