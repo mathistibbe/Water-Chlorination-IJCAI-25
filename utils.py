@@ -39,13 +39,19 @@ def visualize_results(results, model_names: list[str], save_fig_filname: None | 
         axs = [axs]  # ensure axs is always iterable
 
     for ax, key in zip(axs, keys):
-        ax.bar(range(num_runs), values_per_metric[key])
+        bars = ax.bar(range(num_runs), values_per_metric[key])
         ax.set_title(f"Metric: {key}")
         ax.set_xlabel("Run Index")
         ax.set_ylabel("Value")
         ax.set_xticks(range(num_runs))
-        ax.set_xticklabels([i for i in model_names])
+        ax.set_xticklabels(model_names)
         ax.grid(True)
+
+        # Add value labels above the bars
+        for i, bar in enumerate(bars):
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width() / 2, height,
+                    f"{height:.5f}", ha='center', va='bottom', fontsize=10)
 
     if save_fig_filname:
         plt.savefig(save_fig_filname)
@@ -54,7 +60,8 @@ def visualize_results(results, model_names: list[str], save_fig_filname: None | 
 
 
 # compare models:
-def compare_models(models: list, env: WaterChlorinationEnv, save_results_to: None | str = None) -> None:
+def compare_models(models: list, env: WaterChlorinationEnv, save_results_to: None | str = None,
+                   extend_eval: bool = False) -> None:
     """
     Compare multiple models on the same environment.
 
@@ -72,5 +79,9 @@ def compare_models(models: list, env: WaterChlorinationEnv, save_results_to: Non
     model_names = [model.__class__.__name__ for model in models]
     for model in models:
         print(f"Evaluating policy: {model.__class__.__name__}")
-        results.append(evaluate(model, env))
+        if extend_eval:
+            results.append(evaluate(model, env, extend_eval=True))
+        else:
+            results.append(evaluate(model, env))
+
     visualize_results(results, model_names, save_fig_filname=save_results_to)

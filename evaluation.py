@@ -8,7 +8,7 @@ from env import WaterChlorinationEnv
 from control_policy import ChlorinationControlPolicy
 
 
-def evaluate(policy: ChlorinationControlPolicy, env: WaterChlorinationEnv) -> dict:
+def evaluate(policy: ChlorinationControlPolicy, env: WaterChlorinationEnv, extend_eval: bool = False) -> dict:
     """
     Evaluates a given policy for controlling the chlorine injection pumps in a given environment.
 
@@ -80,6 +80,11 @@ def evaluate(policy: ChlorinationControlPolicy, env: WaterChlorinationEnv) -> di
     bound_violations += -1. * np.sum(nodes_quality[lower_bound_violation_idx] - lower_cl_bound)
 
     r["bound_violations"] = (1. / (len(all_junctions) * nodes_quality.shape[0])) * bound_violations
+
+    if extend_eval:
+        # Evaluate upper and lower chlorine concentration violations
+        r["upper_bound_violations"] = np.sum(nodes_quality[upper_bound_violation_idx] - upper_cl_bound)
+        r["lower_bound_violations"] = -1. * np.sum(nodes_quality[lower_bound_violation_idx] - lower_cl_bound)
 
     # Fairness of chlorine concentration bound violations
     def score(x: float) -> float:
