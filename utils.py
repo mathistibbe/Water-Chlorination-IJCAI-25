@@ -5,7 +5,7 @@ from env import WaterChlorinationEnv
 from evaluation import evaluate
 import matplotlib.pyplot as plt
 
-def visualize_results(results, save_fig_filname: None | str = None) -> None:
+def visualize_results(results, model_names: list[str], save_fig_filname: None | str = None) -> None:
     """
     Visualizes comparison of evaluation metrics from a list of result dictionaries.
 
@@ -43,6 +43,8 @@ def visualize_results(results, save_fig_filname: None | str = None) -> None:
         ax.set_title(f"Metric: {key}")
         ax.set_xlabel("Run Index")
         ax.set_ylabel("Value")
+        ax.set_xticks(range(num_runs))
+        ax.set_xticklabels([i for i in model_names])
         ax.grid(True)
 
     if save_fig_filname:
@@ -67,7 +69,8 @@ def compare_models(models: list, env: WaterChlorinationEnv, save_results_to: Non
         Environment in which the policies are evaluated.
     """
     results = []
+    model_names = [model.__class__.__name__ for model in models]
     for model in models:
         print(f"Evaluating policy: {model.__class__.__name__}")
         results.append(evaluate(model, env))
-    visualize_results(results, save_fig_filname=save_results_to)
+    visualize_results(results, model_names, save_fig_filname=save_results_to)

@@ -45,3 +45,14 @@ class ChlorinationControlPolicyRandom(ChlorinationControlPolicy):
     """
     def compute_action(self, observations: np.ndarray) -> np.ndarray:
         return self._gym_action_space.sample()
+
+class ChlorinationControlPolicyConstant(ChlorinationControlPolicy):
+    """
+    Constant control policy -- picks a constant control action in every time step.
+    """
+    def __init__(self, env: WaterChlorinationEnv, constant_action: np.ndarray):
+        super().__init__(env)
+        self._constant_action = constant_action
+
+    def compute_action(self, observations: np.ndarray) -> np.ndarray:
+        return self._constant_action
