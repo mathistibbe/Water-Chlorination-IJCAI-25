@@ -21,7 +21,6 @@ class WaterChlorinationEnv(EpanetMsxControlEnv):
         super().__init__(scenario_config=scenario_config,
                          action_space=action_space,
                          rerun_hydraulics_when_reset=False)
-
         self.__sensor_config_reward = None
         self._f_in_contamination_metadata = f_in_contamination_metadata
         self._f_in_streams_data = f_in_streams_data
@@ -102,10 +101,11 @@ class WaterChlorinationEnv(EpanetMsxControlEnv):
 
     def chlorine_reward(self, sensor_readings: np.ndarray,
                         target: float = 0.3,
-                        sigma: float = 0.05,
+                        sigma: float = 0.1,
                         alpha: float = 10.0,
                         lower: float = 0.2,
-                        upper: float = 0.4) -> float:
+                        upper: float = 0.4,
+                        scaling_factor : float = 10) -> float:
         """
         Compute rewards for a vector of chlorine sensor readings.
 
@@ -119,6 +119,12 @@ class WaterChlorinationEnv(EpanetMsxControlEnv):
 
         Returns:
             np.ndarray: Array of reward values.
+
+        Parameters
+        ----------
+        scaling_factor
+        : float
+            Scaling factor for the final reward value.
         """
 
         rewards = np.zeros_like(sensor_readings)
@@ -129,9 +135,46 @@ class WaterChlorinationEnv(EpanetMsxControlEnv):
 
         # Out of bounds: Linear penalty based on distance to nearest bound
         out_bounds = ~in_bounds
-        distances = np.where(sensor_readings[out_bounds] < lower,
-                             lower - sensor_readings[out_bounds],
-                             sensor_readings[out_bounds] - upper)
-        rewards[out_bounds] = -alpha * distances
+        rewards[out_bounds] = -1.0
 
-        return np.sum(rewards)
+
+        #print(f"Rewards: {scaling_factor * np.sum(rewards)}")
+        return scaling_factor * np.sum(rewards)
+
+    def chlorine_reward_linear(self, sensor_readings: np.ndarray,
+                        target: float = 0.3,
+                        lower: float = 0.2,
+                        upper: float = 0.4,
+                        min_reward: float = -1.0,
+                        scaling_factor: float = 10) -> float:
+        """
+        Compute rewards for a vector of chlorine sensor readings using a V-shaped
+        piecewise linear function centered at `target`.
+
+        Parameters:
+            sensor_readings (np.ndarray): Array of sensor values.
+            target (float): Ideal chlorine concentration.
+            lower (float): Minimum chlorine level for linear reward range.
+            upper (float): Maximum chlorine level for linear reward range.
+            min_reward (float): Minimum reward at the bounds.
+            scaling_factor (float): Scaling factor for the final reward value.
+
+        Returns:
+            float: Total reward (scaled).
+        """
+
+        rewards = np.zeros_like(sensor_readings)
+
+        # Left side of the V (increasing towards target)
+        left_mask = sensor_readings < target
+        rewards[left_mask] = np.interp(sensor_readings[left_mask],
+                                       [lower, target],
+                                       [min_reward, 1.0])
+
+        # Right side of the V (decreasing from target)
+        right_mask = sensor_readings >= target
+        rewards[right_mask] = np.interp(sensor_readings[right_mask],
+                                        [target, upper],
+                                        [1.0, min_reward])
+        #print(f"Rewards: {scaling_factor * np.sum(rewards)}")
+        return scaling_factor * np.sum(rewards)
