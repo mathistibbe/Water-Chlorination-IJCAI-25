@@ -24,6 +24,7 @@ class WaterChlorinationEnv(EpanetMsxControlEnv):
         self.__sensor_config_reward = None
         self._f_in_contamination_metadata = f_in_contamination_metadata
         self._f_in_streams_data = f_in_streams_data
+        self.rewards = []
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict[str, Any]] = None
               ) -> tuple[np.ndarray, dict]:
@@ -49,6 +50,7 @@ class WaterChlorinationEnv(EpanetMsxControlEnv):
         obs = self._get_observation(current_scada_data)
 
         return obs, {"scada_data": current_scada_data}
+
 
     def _compute_reward_function(self, scada_data: ScadaData) -> float:
         """
@@ -97,15 +99,16 @@ class WaterChlorinationEnv(EpanetMsxControlEnv):
         # lower_bound_violation_idx = nodes_quality < lower_cl_bound
         # reward += np.sum(nodes_quality[lower_bound_violation_idx] - lower_cl_bound)
 
-        return self.chlorine_reward(sensor_readings=nodes_quality)
+        reward = self.chlorine_reward_shaped(sensor_readings=nodes_quality)
+        self.rewards.append(reward)
+        return reward
 
     def chlorine_reward(self, sensor_readings: np.ndarray,
                         target: float = 0.3,
                         sigma: float = 0.1,
-                        alpha: float = 10.0,
                         lower: float = 0.2,
                         upper: float = 0.4,
-                        scaling_factor : float = 10) -> float:
+                        scaling_factor : float = 1) -> float:
         """
         Compute rewards for a vector of chlorine sensor readings.
 
@@ -113,18 +116,11 @@ class WaterChlorinationEnv(EpanetMsxControlEnv):
             sensor_readings (np.ndarray): Array of sensor values.
             target (float): Ideal chlorine concentration.
             sigma (float): Std dev for Gaussian reward (within bounds).
-            alpha (float): Penalty factor for out-of-bound values.
             lower (float): Lower safe concentration bound.
             upper (float): Upper safe concentration bound.
-
+            scaling_factor (float): Scaling factor for the final reward value.
         Returns:
             np.ndarray: Array of reward values.
-
-        Parameters
-        ----------
-        scaling_factor
-        : float
-            Scaling factor for the final reward value.
         """
 
         rewards = np.zeros_like(sensor_readings)
@@ -133,12 +129,10 @@ class WaterChlorinationEnv(EpanetMsxControlEnv):
         in_bounds = (sensor_readings >= lower) & (sensor_readings <= upper)
         rewards[in_bounds] = np.exp(-((sensor_readings[in_bounds] - target) ** 2) / (2 * sigma ** 2))
 
-        # Out of bounds: Linear penalty based on distance to nearest bound
+        # Out of bounds: Constant penalty when outside the bounds
         out_bounds = ~in_bounds
         rewards[out_bounds] = -1.0
 
-
-        #print(f"Rewards: {scaling_factor * np.sum(rewards)}")
         return scaling_factor * np.sum(rewards)
 
     def chlorine_reward_linear(self, sensor_readings: np.ndarray,
@@ -146,7 +140,7 @@ class WaterChlorinationEnv(EpanetMsxControlEnv):
                         lower: float = 0.2,
                         upper: float = 0.4,
                         min_reward: float = -1.0,
-                        scaling_factor: float = 10) -> float:
+                        scaling_factor: float = 1) -> float:
         """
         Compute rewards for a vector of chlorine sensor readings using a V-shaped
         piecewise linear function centered at `target`.
@@ -176,5 +170,47 @@ class WaterChlorinationEnv(EpanetMsxControlEnv):
         rewards[right_mask] = np.interp(sensor_readings[right_mask],
                                         [target, upper],
                                         [1.0, min_reward])
-        #print(f"Rewards: {scaling_factor * np.sum(rewards)}")
         return scaling_factor * np.sum(rewards)
+
+    def chlorine_reward_shaped(
+            self,
+            sensor_readings: np.ndarray,
+            target: float = 0.3,
+            sigma: float = 0.1,
+            lower: float = 0.2,
+            upper: float = 0.4,
+            reward_scale: float = 1.0,
+    ) -> float:
+        """
+        Shaped reward: average Gaussian‐style reward across nodes,
+        minus a small cost on total injected chlorine.
+
+        Parameters
+        ----------
+        sensor_readings : np.ndarray
+            current Cl2 concentrations at each node
+        target : float
+            ideal concentration
+        sigma : float
+            stddev for the Gaussian “in‐bounds” shape
+        lower, upper : float
+            safe bounds (outside = constant penalty)
+        reward_scale : float
+            overall multiplier for the averaged node‐reward
+
+        Returns
+        -------
+        float
+            shaped reward in a roughly bounded range
+        """
+        # --- 1) node‐wise “accuracy” ---
+        r = np.zeros_like(sensor_readings, dtype=float)
+
+        in_bounds = (sensor_readings >= lower) & (sensor_readings <= upper)
+        r[in_bounds] = np.exp(-((sensor_readings[in_bounds] - target) ** 2)
+                              / (2 * sigma ** 2))
+        r[~in_bounds] = -1.0
+
+        avg_node_reward = np.mean(r)
+        shaped = reward_scale * avg_node_reward
+        return shaped

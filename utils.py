@@ -1,9 +1,10 @@
 import numpy as np
-import matplotlib.pyplot as plt
+from stable_baselines3.common.callbacks import BaseCallback
 
 from env import WaterChlorinationEnv
 from evaluation import evaluate
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 def visualize_results(results, model_names: list[str], save_fig_filname: None | str = None) -> None:
     """
@@ -77,7 +78,7 @@ def compare_models(models: list, env: WaterChlorinationEnv, save_results_to: Non
     """
     results = []
     model_names = [model.__class__.__name__ for model in models]
-    for model in models:
+    for model in tqdm(models):
         print(f"Evaluating policy: {model.__class__.__name__}")
         if extend_eval:
             results.append(evaluate(model, env, extend_eval=True))
@@ -85,3 +86,55 @@ def compare_models(models: list, env: WaterChlorinationEnv, save_results_to: Non
             results.append(evaluate(model, env))
 
     visualize_results(results, model_names, save_fig_filname=save_results_to)
+
+def plot_reward_histogram(log_path: str, bins: int = 30, alpha: float = 0.5):
+    """
+    Reads a rewards log file with two comma-separated columns (Gaussian and linear rewards)
+    and displays an overlaid histogram of both distributions.
+
+    Parameters:
+    -----------
+    log_path : str
+        Path to the rewards_log.txt file.
+    bins : int
+        Number of histogram bins.
+    alpha : float
+        Transparency level for the histograms (0.0 transparent through 1.0 opaque).
+    """
+    # Load data: two columns per line, separated by commas
+    data = np.loadtxt(log_path, delimiter=',')
+    gauss_rewards = data[:, 0]
+    linear_rewards = data[:, 1]
+    shaped_rewards = data[:, 2]
+
+    # Create the histogram
+    plt.figure()
+    #plt.hist(gauss_rewards, bins=bins, alpha=alpha, label='Gaussian Reward')
+    #plt.hist(linear_rewards, bins=bins, alpha=alpha, label='Linear Reward')
+    plt.hist(shaped_rewards, bins=bins, alpha=alpha, label='Shaped Reward')
+    plt.xlabel('Reward Value')
+    plt.ylabel('Frequency')
+    plt.title('Reward Distributions')
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+class LoggingCallback(BaseCallback):
+    def __init__(self, verbose=0):
+        super().__init__(verbose)
+
+    def _on_step(self) -> bool:
+        actions = self.locals.get("actions")
+        rewards = self.locals.get("rewards")
+
+        # Log actions
+        if actions is not None:
+            self.logger.record("rollout/actions", actions)
+
+        # Log rewards
+        if rewards is not None:
+            mean_reward = rewards.mean()
+            self.logger.record("rollout/rewards", mean_reward)
+
+        return True
